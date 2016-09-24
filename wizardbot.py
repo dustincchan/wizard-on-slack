@@ -14,21 +14,47 @@ slack_client = SlackClient(os.environ.get('SLACK_BOT_TOKEN'))
 users_in_game = []
 user_id_to_username = {}
 
-def handle_command(command, channel, user_id): #user is user_id
-    print(user)
-    response = "Not sure what you mean. If you want to start a game, then tell me _'add me'_"
+def handle_command(command, channel, user_id):
+    username = user_id_to_username[user_id] #user who sent the message
+    response = "I'm not sure what you meant by that." #default response
+
+    if command.lower().startswith("create game"):
+        if len(users_in_game) == 0:
+            response = "<@{}> Wants to play a game of wizard! Tell me _'add me'_ to play.".format(username)
+            users_in_game.append(user_id)
+        else:
+            response = "There is already a game being initialized, say _'add me' if you want in."
+
+    if command.lower().startswith("cancel"):
+        response = "Okay, game cancelled."
+        users_in_game = []
 
     if command.lower().startswith("add me"):
         if len(users_in_game) == 0:
-            response = "{} Wants to play a game of wizard! Message me to play".format(user_id)
-            users_in_game.append(user_id)
+            response = "There is no active game, try _'create game'_."
         else:
-            users_in_game.append(user_id)
-            response = "Added {} to the game!".format(user_id)
-            print(users_in_game)
+            if user_id in users_in_game:
+                response = "You've already been added to the game."
+            else:
+                users_in_game.append(user_id)
+                response = "Added <@{}> to the game!".format(username)
+
+    if command.lower().startswith("start game"):
+        response = "Starting a new game of Wizard with players: \n" + get_readable_list_of_players()
+        play_game_of_wizard(users_in_game)
 
     slack_client.api_call("chat.postMessage", channel=channel,
                           text=response, as_user=True)
+
+def get_readable_list_of_players():
+    #TODO refactor this with less mumbojumbo
+    player_names = []
+    printable_player_names = []
+    for player_id in users_in_game:
+        player_names.append(user_id_to_username[player_id])
+    for idx, player_name in enumerate(player_names):
+        printable_player_names.append("{}) <@{}>".format(idx + 1, player_name))
+    return (' \n ').join(printable_player_names)
 
 def parse_slack_output(slack_rtm_output):
     """
@@ -47,6 +73,9 @@ def parse_slack_output(slack_rtm_output):
                        output['channel'], output['user']
     return None, None, None
 
+
+def play_game_of_wizard(players):
+    pass
 
 if __name__ == "__main__":
     READ_WEBSOCKET_DELAY = 1 # 1 second delay between reading from firehose
