@@ -7,13 +7,12 @@ BOT_NAME = 'wizardbot'
 slack_client = SlackClient(os.environ.get('SLACK_BOT_TOKEN'))
 
 if __name__ == "__main__":
-    api_call = slack_client.api_call("users.list")
+    api_call = slack_client.api_call("channels.list")
     if api_call.get('ok'):
         #retrieve all users so we can find our bot
-        users = api_call.get('members')
-        for user in users:
-            print(user)
-            if 'name' in user and user.get('name') == BOT_NAME:
-                print("Bot ID for '" + user['name'] + "' is " + user.get('id'))
+        channels = api_call.get('channels')
+        for channel in channels:
+            if channel.get('name') == "maingame":
+                print(channel.get('id'))
     else:
         print("could not find bot user with the name " + BOT_NAME)
