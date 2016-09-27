@@ -1,5 +1,5 @@
 import random
-import wizardbot as WizardBot
+import bot as WizardBot
 
 wizard_deck = ["jester", "jester", "jester", "jester"]
 suits = ["diamonds", "clubs", "hearts", "spades"]
@@ -30,11 +30,12 @@ class Deck: #preshuffled deck
         return self.cards.pop()
 
 class Game:
-    def __init__(self, players):
+    def __init__(self, players, bot):
         #[Player1, Player2, Player3, ...etc]
         self.players = players
         self.final_round = 60/len(players) #i.e. 12 rounds for 5 players
         self.current_round = 1
+        self.bot = bot
 
     # 1) creates a new shuffled deck
     # 2) deals cards to the players depending on the round #
@@ -60,10 +61,10 @@ class Game:
                 trump_suit = trump_card[1]
         elif len(shuffled_deck.cards) == 0:
             trump_suit = None
-        WizardBot.announce_trump_suit(trump_card)
         for player in self.players:
-            WizardBot.display_cards_for_player_in_pm(player.id, player.cards_in_hand)
-        WizardBot.get_bids_from_players(self.current_round, self.players)
+            self.bot.display_cards_for_player_in_pm(player.id, player.cards_in_hand)
+        self.bot.get_bids_from_players(self.current_round, self.players)
+        self.bot.announce_trump_card(trump_card)
         #dealer is always index 0 of players and we will rotate the array end of each turn
         for _ in range(0, self.current_round):
             self.play_mini_round()

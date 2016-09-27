@@ -2,6 +2,7 @@ import os
 import time
 from slackclient import SlackClient
 import wizardgame as WizardGame
+import helper_functions
 from collections import defaultdict
 
 # wizardbot's ID as an environment variable
@@ -13,7 +14,7 @@ AT_BOT = "<@" + BOT_ID + ">"
 # instantiate Slack & Twilio clients
 slack_client = SlackClient(os.environ.get('SLACK_BOT_TOKEN'))
 users_in_game = []
-user_id_to_username = {}
+user_ids_to_username = {}
 channel_ids_to_name = {}
 private_message_channel_ids_to_username = {}
 main_channel_id = 'C2F154UTE'
@@ -23,7 +24,7 @@ waiting_for_user_response = []
 def handle_command(command, channel, user_id):
     print(command, channel, user_id)
     #TODO restrict the channel this is in
-    username = user_id_to_username[user_id] #user who sent the message
+    username = user_ids_to_username[user_id] #user who sent the message
     response = "Hey! So uh...this is awkward, but I only respond to game commands." #default response
 
     if command.lower().startswith("create game"):
@@ -107,13 +108,13 @@ def get_readable_list_of_players():
     player_names = []
     printable_player_names = []
     for player_id in users_in_game:
-        player_names.append(user_id_to_username[player_id])
+        player_names.append(user_ids_to_username[player_id])
     for idx, player_name in enumerate(player_names):
         printable_player_names.append("{}) <@{}>".format(idx + 1, player_name))
     return (' \n ').join(printable_player_names)
 
 def display_cards_for_player_in_pm(player_id, cards):
-    formatted_cards = format_cards_to_emojis(cards)
+    formatted_cards = helper_functions.format_cards_to_emojis(cards)
     slack_client.api_call(
         "chat.postMessage",
         channel=player_id,
@@ -130,14 +131,7 @@ def announce_trump_suit(trump_card):
         as_user=True
     )
 
-def format_cards_to_emojis(cards):
-    formatted_cards = []
-    for card in cards:
-        if len(card) == 2:
-            formatted_cards.append("[{}:{}:]".format(card[0],card[1]))
-        else:
-            formatted_cards.append(":{}:".format(card))
-    return "".join(formatted_cards)
+
 
 def parse_slack_output(slack_rtm_output):
     """
@@ -174,7 +168,7 @@ if __name__ == "__main__":
     if api_call.get('ok'):
         users = api_call.get('members')
         for user in users:
-            user_id_to_username[user['id']] = user['name']
+            user_ids_to_username[user['id']] = user['name']
 
     channels = slack_client.api_call("channels.list").get('channels')
     for channel in channels:
