@@ -1,5 +1,5 @@
 import random
-import bot as WizardBot
+import wizardbot as WizardBot
 
 wizard_deck = ["jester", "jester", "jester", "jester"]
 suits = ["diamonds", "clubs", "hearts", "spades"]
