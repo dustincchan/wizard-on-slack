@@ -17,8 +17,11 @@ user_id_to_username = {}
 channel_ids_to_name = {}
 private_message_channel_ids_to_username = {}
 main_channel_id = 'C2F154UTE'
+player_bids = defaultdict(list)
+waiting_for_user_response = []
 
 def handle_command(command, channel, user_id):
+    print(command, channel, user_id)
     #TODO restrict the channel this is in
     username = user_id_to_username[user_id] #user who sent the message
     response = "Hey! So uh...this is awkward, but I only respond to game commands." #default response
@@ -59,7 +62,18 @@ def handle_command(command, channel, user_id):
     slack_client.api_call("chat.postMessage", channel=channel,
                           text=response, as_user=True)
 
-def handle_private_message(command, user_id, is_asking_for_bid=False, is_asking_for_card_to_play=False):
+def handle_private_message(command, user_id):
+    print(waiting_for_user_response)
+    #waiting for a bid
+    if len(player_bids[user_id]) == 0: #TODO and waiting for response from user
+        try:
+            player_bids[user_id].append(int(command)) #TODO check current_round
+            message = "Bid recorded! Check the main channel."
+            get_bid_from_player(users_in_game.index(user_id) + 1, 1)
+        except:
+            message = "That wasn't a valid command. Please tell me an integer for your bid."
+    else:
+        message = "You've already bid this round."
     slack_client.api_call(
         "chat.postMessage",
         channel=user_id,
@@ -67,19 +81,18 @@ def handle_private_message(command, user_id, is_asking_for_bid=False, is_asking_
         as_user=True
     )
 
-def get_bids_from_players(player_objects, current_round):
-    #ask, in order, for each players' bid
-    player_bids = defaultdict(list)
-    for player in player_objects:
-        slack_client.api_call(
-            "chat.postMessage",
-            channel=player.id,
-            text="What's your bid for the round?",
-            as_user=True
-        )
-        while len(player_bids[player.id]) == 0:
-            pass
+def get_bids_from_players(current_round, players):
+    get_bid_from_player(players, 0, current_round)
 
+def get_bid_from_player(players, player_index, current_round):
+    #ask, in order, for each players' bid
+    slack_client.api_call(
+        "chat.postMessage",
+        channel=players[player_index].id,
+        text="What's your bid for the round?",
+        as_user=True
+    )
+    waiting_for_user_response.append(players[player_index].id)
 
 def prompt_dealer_for_trump_suit(player_id):
     slack_client.api_call(
@@ -104,7 +117,7 @@ def display_cards_for_player_in_pm(player_id, cards):
     slack_client.api_call(
         "chat.postMessage",
         channel=player_id,
-        text="Your card(s): {} \n What's your bid?".format(formatted_cards),
+        text="Your card(s): {}".format(formatted_cards),
         as_user=True
     )
 
@@ -123,7 +136,7 @@ def format_cards_to_emojis(cards):
         if len(card) == 2:
             formatted_cards.append("[{}:{}:]".format(card[0],card[1]))
         else:
-            formatted_cards.append(":{}:").format(card)
+            formatted_cards.append(":{}:".format(card))
     return "".join(formatted_cards)
 
 def parse_slack_output(slack_rtm_output):
@@ -166,7 +179,6 @@ if __name__ == "__main__":
     channels = slack_client.api_call("channels.list").get('channels')
     for channel in channels:
         channel_ids_to_name[channel['id']] = channel['name']
-
 
     if slack_client.rtm_connect():
         print("WizardBot connected and running!")

@@ -52,7 +52,8 @@ class Game:
             if trump_card == "wizard" or trump_card == "jester":
                 #is a wizard or jester
                 if trump_card == "wizard":
-                    trump_suit = WizardBot.prompt_dealer_for_trump_suit(self.players.first.id)
+                    pass
+                    # trump_suit = WizardBot.prompt_dealer_for_trump_suit(self.players.first.id)
                 elif trump_card == "jester":
                     trump_suit = None
             elif len(trump_card) == 2: #regular card
@@ -62,7 +63,7 @@ class Game:
         WizardBot.announce_trump_suit(trump_card)
         for player in self.players:
             WizardBot.display_cards_for_player_in_pm(player.id, player.cards_in_hand)
-        WizardBot.get_bids_from_players(self.players, self.current_round)
+        WizardBot.get_bids_from_players(self.current_round, self.players)
         #dealer is always index 0 of players and we will rotate the array end of each turn
         for _ in range(0, self.current_round):
             self.play_mini_round()
