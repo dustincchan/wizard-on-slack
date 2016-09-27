@@ -20,6 +20,7 @@ class WizardBot:
         self.main_channel_id = 'C2F154UTE' #TODO make this dynamic
         self.player_bids_for_current_round = []
         self.listening_for_user_id = ""
+        self.trump_suit = ""
         self.player_bid_queue = []
         self.player_turn_queue = []
         self.current_round = 1
@@ -27,7 +28,9 @@ class WizardBot:
     def handle_command(self, command, channel, user_id):
         #TODO restrict the channel this is in
         username = self.user_ids_to_username[user_id] #user who sent the message
-        response = "Hey! So uh...this is awkward, but I only respond to game commands." #default response
+
+        #TODO this response can come from a random array of responses to gibberish
+        response = "Hey! So uh...this is awkward, but I only respond to game commands."
 
         if command.lower().startswith("create game"):
             if len(self.users_in_game) == 0:
@@ -60,8 +63,11 @@ class WizardBot:
             elif len(self.users_in_game) < 2:
                 response = "There aren't enough players yet (minimum 4). Users can say `add me` to be added to the game."
             else:
-                response = "Starting a new game of Wizard with players: \n" + self.get_readable_list_of_players()
+                response = ">>>Starting a new game of Wizard with players: \n" + self.get_readable_list_of_players()
+                slack_client.api_call("chat.postMessage", channel=channel,
+                                      text=response, as_user=True)
                 self.play_game_of_wizard_on_slack(self.users_in_game, channel)
+                return #have to do this because we want the "new game" message to come before the trump card announcement
 
         slack_client.api_call("chat.postMessage", channel=channel,
                               text=response, as_user=True)
@@ -85,7 +91,7 @@ class WizardBot:
                         slack_client.api_call(
                             "chat.postMessage",
                             channel=self.main_channel_id,
-                            text="{} bids *<@{}>*.".format(current_username, int(command)),
+                            text="<@{}> bids *{}*.".format(current_username, int(command)),
                             as_user=True
                         )
 
@@ -173,7 +179,7 @@ class WizardBot:
         slack_client.api_call(
             "chat.postMessage",
             channel=self.main_channel_id,
-            text="*Round 1* \n The trump card is: [{}:{}:]".format(trump_card[0], trump_card[1]),
+            text=">>>*Round {}* \n The trump card is: [{}:{}:]".format(self.current_round, trump_card[0], trump_card[1]),
             as_user=True
         )
 
@@ -182,7 +188,6 @@ class WizardBot:
         player_objects = []
         for player_id in players:
             player_objects.append(WizardGame.Player(player_id))
-
         game = WizardGame.Game(player_objects, bot)
         game.play_round()
 
