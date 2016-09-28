@@ -35,6 +35,7 @@ class Game:
         self.players = players
         self.final_round = 60/len(players) #i.e. 12 rounds for 5 players
         self.current_round = 1
+        self.current_round_trump_suit = None
         self.bot = bot
 
     # 1) creates a new shuffled deck
@@ -53,14 +54,13 @@ class Game:
             if trump_card == "wizard" or trump_card == "jester":
                 #is a wizard or jester
                 if trump_card == "wizard":
-                    pass
-                    # trump_suit = WizardBot.prompt_dealer_for_trump_suit(self.players.first.id)
+                    self.bot.prompt_dealer_for_trump_suit(self.players[0].id, self)
                 elif trump_card == "jester":
                     trump_suit = None
             elif len(trump_card) == 2: #regular card
                 trump_suit = trump_card[1]
         elif len(shuffled_deck.cards) == 0:
-            trump_suit = None
+            self.bot.prompt_dealer_for_trump_suit(self.players.first.id, self)
         for player in self.players:
             self.bot.display_cards_for_player_in_pm(player.id, player.cards_in_hand)
         self.bot.get_bids_from_players(self.current_round, self.players)
