@@ -15,18 +15,23 @@ suits = ["diamonds", "clubs", "hearts", "spades"]
 
 class WizardBot:
     def __init__(self, main_channel_id='C2F154UTE'):
-        self.users_in_game = []
-        self.user_ids_to_username = {}
-        self.channel_ids_to_name = {}
+        self.users_in_game = deque([]) #[user_id, user_id...]
+        self.user_ids_to_username = {} #{'USERID': 'Dustin'}
+        self.channel_ids_to_name = {} #{'CHANNELID': "#Maingame"}
         self.main_channel_id = 'C2F154UTE' #TODO make this dynamic
-        self.player_bids_for_current_round = []
-        self.listening_for_user_id = ""
-        self.unspecified_trump_suit = True
-        self.player_trump_card_queue = []
-        self.player_bid_queue = []
-        self.player_turn_queue = []
+        self.player_bids_for_current_round = [] #[1, 1, 0]
+
+        self.player_trump_card_queue = [] #['USERID']
+        self.player_bid_queue = [] #['USERID1', 'USERID2', 'USERID3']
+        self.player_turn_queue = [] #['USERID1', 'USERID2', 'USERID3']
+
         self.current_round = 1
-        self.current_game = None
+        self.current_game = None #WizardGame.Game() object
+
+        #this is the suit that enforces other players play a card that has that suit, if they have one
+        self.sub_round_suit = None #"diamonds"
+        self.cards_played_for_sub_round = [] #this mirrors player_turn_queue as to determine a winner
+        self.winner_for_sub_round = None
 
     def handle_command(self, command, channel, user_id):
         #TODO restrict the channel this is in
@@ -102,6 +107,11 @@ class WizardBot:
 
         self.private_message_user(user_id, response)
 
+    def get_card_being_played(self, user_id, index): # -> ex. ['A', 'spades']
+        for user_object in self.current_game.players:
+            if user_object.id == user_id:
+                return user_object.cards_in_hand[index]
+
     def handle_player_bid(self, command, user_id):
         current_username = self.user_ids_to_username[self.player_bid_queue[0]]
         #we're waiting for the first player in queue to bid
@@ -124,7 +134,7 @@ class WizardBot:
                     )
                     self.player_bid_queue.popleft()
                     if len(self.player_bid_queue) == 0:
-                        #everyone bidded, time to play mini_round
+                        #everyone bidded, time to play sub_round
                         slack_client.api_call(
                             "chat.postMessage",
                             channel=self.main_channel_id,
@@ -132,7 +142,7 @@ class WizardBot:
                             as_user=True
                         )
                         print(self.player_turn_queue)
-                        self.private_message_user(self.player_turn_queue[0], "Please select an card `index` to play")
+                        self.private_message_user(self.player_turn_queue[0], "Please select an card `index` to play.")
                     else: #get the next player's bid
                         self.private_message_user(self.player_bid_queue[0], "What's your bid for the round?")
             except:
@@ -147,8 +157,70 @@ class WizardBot:
         if user_id != self.player_turn_queue[0]:
             response = "Waiting for <@{}> to play a card.".format(current_username)
         elif user_id == self.player_turn_queue[0]:
-            pass
+            #validate the int(command) index selected is within the range of cards in hand
+            if int(command) >= 0 and int(command) <= self.current_round:
+                card_being_played = self.get_card_being_played(user_id, int(command))
+                #valid card played
+                if self.sub_round_suit != None:
+                    #a wizard or a jester is always a valid play
+                    if card_being_played == "wizard" or card_being_played == "jester":
+                        self.handle_valid_card_played(card_being_played)
+                    elif self.sub_round_suit == "Any":
+                        #a wizard was played as the first card
+                        #players are free to play whatever they want
+                        self.handle_valid_card_played(card_being_played)
+                    elif card_being_played[1] == sub_round_suit:
+                        #card played same suit as sub_round_suit
+                        self.handle_valid_card_played(card_being_played)
+                    elif self.player_hand_contains_suit(user_id, self.sub_round_suit) == False:
+                        #any card is valid, because player doesn't have the initial suit
+                        self.handle_valid_card_played(card_being_played)
+                    else:
+                        self.private_message_user(user_id, "You can't play that card")
+                elif self.sub_round_suit == None:
+                    if card_being_played == "wizard":
+                        self.sub_round_suit = "Any"
+                        self.handle_valid_card_played(card_being_played)
+                    elif card_being_played == "jester":
+                        #the sub round suit stays None until a player plays a suited card
+                        self.handle_valid_card_played(card_being_played)
+                    else:
+                        self.sub_round_suit = card_being_played[1]
+                        self.cards_played_for_sub_round.append(card_being_played)
+            else:
+                response = "That wasn't a valid card index."
         self.private_message_user(user_id, response)
+
+    def player_hand_contains_suit(user_id, suit):
+        for user_object in self.current_game.players:
+            if user_object.id == user_id:
+                for card in user_object.cards_in_hand:
+                    if card != "wizard" and card != "jester":
+                        if card[1] == suit:
+                            return True
+        return False
+
+
+    def handle_valid_card_played(card):
+        self.cards_played_for_sub_round.append(card)
+        self.player_turn_queue.popleft()
+        if len(self.player_turn_queue) == 0:
+            #everyone has played the sub_round
+            print(self.cards_played_for_sub_round)
+            self.determine_winner_for_sub_round()
+        else:
+            self.private_message_user(self.player_turn_queue[0], "Your turn. Pick a card to play.")
+
+    def determine_winner_for_sub_round():
+        pass #goes through the cards played
+
+    def message_main_game_channel(self, message):
+        slack_client.api_call(
+            "chat.postMessage",
+            channel=self.main_channel_id,
+            text=message,
+            as_user=True
+        )
 
     def private_message_user(self, user_id, message):
         slack_client.api_call(
@@ -157,6 +229,7 @@ class WizardBot:
             text=message,
             as_user=True
         )
+
 
     def handle_private_message(self, command, user_id):
         response = ""
@@ -192,6 +265,7 @@ class WizardBot:
         #the player after the dealer should be first to bid, so we rotate the queue
         self.player_bid_queue.rotate(-1)
         self.player_turn_queue.rotate(-1)
+        self.users_in_game.rotate(-1)
         self.current_round = current_round
         slack_client.api_call(
             "chat.postMessage",

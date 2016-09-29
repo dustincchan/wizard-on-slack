@@ -67,11 +67,11 @@ class Game:
         self.bot.announce_trump_card(trump_card)
         #dealer is always index 0 of players and we will rotate the array end of each turn
         for _ in range(0, self.current_round):
-            self.play_mini_round()
+            self.play_sub_round()
         self.current_round += 1
 
 
-    def play_mini_round(self):
+    def play_sub_round(self):
         pass
         # player_bids = WizardBot.get_player_bids()
         #prompt each player to choose a card
