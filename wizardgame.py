@@ -44,6 +44,7 @@ class Game:
     # 4) gets bids from players
     # 5) plays mini-rounds & allocates points until round is over
     def play_round(self):
+        self.bot.current_game = self
         shuffled_deck = Deck()
         for _ in range(0, self.current_round):
             self.deal_single_card_to_each_player(shuffled_deck)
@@ -54,13 +55,13 @@ class Game:
             if trump_card == "wizard" or trump_card == "jester":
                 #is a wizard or jester
                 if trump_card == "wizard":
-                    self.bot.prompt_dealer_for_trump_suit(self.players[0].id, self)
+                    self.bot.prompt_dealer_for_trump_suit(self.players[0].id)
                 elif trump_card == "jester":
                     trump_suit = None
             elif len(trump_card) == 2: #regular card
                 trump_suit = trump_card[1]
         elif len(shuffled_deck.cards) == 0:
-            self.bot.prompt_dealer_for_trump_suit(self.players.first.id, self)
+            self.bot.prompt_dealer_for_trump_suit(self.players.first.id)
         for player in self.players:
             self.bot.display_cards_for_player_in_pm(player.id, player.cards_in_hand)
         self.bot.get_bids_from_players(self.current_round, self.players)

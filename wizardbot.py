@@ -40,6 +40,17 @@ class WizardBot:
         #TODO this response can come from a random array of responses to gibberish
         response = "Hey! So uh...this is awkward, but I only respond to game commands."
 
+        if command.lower().startswith("debug game"):
+            self.users_in_game.append('U2F0ZG8CW') #dustin
+            self.users_in_game.append('U2FHWL0J0') #dustinphone
+            # self.users_in_game.append('U2JAAKHD5') #dustinipad
+            response = ">>>Starting a new game of Wizard with players: \n" + self.get_readable_list_of_players()
+            slack_client.api_call("chat.postMessage", channel=channel,
+                                  text=response, as_user=True)
+            self.play_game_of_wizard_on_slack(self.users_in_game, channel)
+            return
+
+
         if command.lower().startswith("create game"):
             if len(self.users_in_game) == 0:
                 response = "<@{}> Wants to play a game of wizard! Tell me `add me` to play.".format(username)
@@ -110,6 +121,7 @@ class WizardBot:
     def get_card_being_played(self, user_id, index): # -> ex. ['A', 'spades']
         for user_object in self.current_game.players:
             if user_object.id == user_id:
+                print(user_object.cards_in_hand)
                 return user_object.cards_in_hand[index]
 
     def handle_player_bid(self, command, user_id):
@@ -141,7 +153,6 @@ class WizardBot:
                             text="All bids recorded, let's play!",
                             as_user=True
                         )
-                        print(self.player_turn_queue)
                         self.private_message_user(self.player_turn_queue[0], "Please select an card `index` to play.")
                     else: #get the next player's bid
                         self.private_message_user(self.player_bid_queue[0], "What's your bid for the round?")
@@ -153,12 +164,14 @@ class WizardBot:
     def handle_player_turn(self, command, user_id):
         response = ""
         current_username = self.user_ids_to_username[self.player_turn_queue[0]]
+        print("User sending message: {}".format(self.user_ids_to_username[user_id]  ))
         #waiting for first player after dealer to play a card
         if user_id != self.player_turn_queue[0]:
             response = "Waiting for <@{}> to play a card.".format(current_username)
         elif user_id == self.player_turn_queue[0]:
+            print('Received input from expected player')
             #validate the int(command) index selected is within the range of cards in hand
-            if int(command) >= 0 and int(command) <= self.current_round:
+            if int(command) >= 0 and int(command) < self.current_round:
                 card_being_played = self.get_card_being_played(user_id, int(command))
                 #valid card played
                 if self.sub_round_suit != None:
@@ -169,7 +182,7 @@ class WizardBot:
                         #a wizard was played as the first card
                         #players are free to play whatever they want
                         self.handle_valid_card_played(card_being_played)
-                    elif card_being_played[1] == sub_round_suit:
+                    elif card_being_played[1] == self.sub_round_suit:
                         #card played same suit as sub_round_suit
                         self.handle_valid_card_played(card_being_played)
                     elif self.player_hand_contains_suit(user_id, self.sub_round_suit) == False:
@@ -201,12 +214,13 @@ class WizardBot:
         return False
 
 
-    def handle_valid_card_played(card):
+    def handle_valid_card_played(self, card):
+        print("Player turn queue: {}".format(self.player_turn_queue))
         self.cards_played_for_sub_round.append(card)
         self.player_turn_queue.popleft()
         if len(self.player_turn_queue) == 0:
             #everyone has played the sub_round
-            print(self.cards_played_for_sub_round)
+            print("Card played: {}".format(self.cards_played_for_sub_round))
             self.determine_winner_for_sub_round()
         else:
             self.private_message_user(self.player_turn_queue[0], "Your turn. Pick a card to play.")
@@ -234,7 +248,8 @@ class WizardBot:
     def handle_private_message(self, command, user_id):
         response = ""
         if len(self.player_trump_card_queue):
-            self.handle_trump_suit_selection(command, user_id)
+            # self.handle_trump_suit_selection(command, user_id)
+            print('TODO: handle trump suit selection')
 
         elif len(self.player_bid_queue):
             self.handle_player_bid(command, user_id)
@@ -267,16 +282,27 @@ class WizardBot:
         self.player_turn_queue.rotate(-1)
         self.users_in_game.rotate(-1)
         self.current_round = current_round
+
+        #DEBUGGING REMOVE THIS AFTER TESTING
+        self.player_bid_queue.clear()
+        self.player_bids_for_current_round = [1 ,1]
         slack_client.api_call(
             "chat.postMessage",
-            channel=self.player_bid_queue[0],
-            text="What's your bid for the round?",
+            channel=self.main_channel_id,
+            text="DEBUG MODE: GOT BIDS AUTOMATICALLY BY DEBUGGING",
             as_user=True
         )
+        #DEBUGGING
 
-    def prompt_dealer_for_trump_suit(self, player_id, game):
+        # slack_client.api_call(
+        #     "chat.postMessage",
+        #     channel=self.player_bid_queue[0],
+        #     text="What's your bid for the round?",
+        #     as_user=True
+        # )
+
+    def prompt_dealer_for_trump_suit(self, player_id):
         self.player_trump_card_queue.append(player_id)
-        self.current_game = game
         slack_client.api_call(
             "chat.postMessage",
             channel=player_id,
@@ -322,7 +348,7 @@ class WizardBot:
 
 if __name__ == "__main__":
     bot = WizardBot()
-    READ_WEBSOCKET_DELAY = 1 # 1 second delay between reading from firehose
+    READ_WEBSOCKET_DELAY = 0.25 # 1 second delay between reading from firehose
     #grab user list and converts it to to a dict of ids to usernames
     api_call = slack_client.api_call("users.list")
 
