@@ -169,12 +169,14 @@ class WizardBot:
         if user_id != self.player_turn_queue[0]:
             response = "Waiting for <@{}> to play a card.".format(current_username)
         elif user_id == self.player_turn_queue[0]:
-            print('Received input from expected player')
+            print('Received input from expected player: {}'.format(current_username))
             #validate the int(command) index selected is within the range of cards in hand
             if int(command) >= 0 and int(command) < self.current_round:
+                print("Selected a valid card index")
                 card_being_played = self.get_card_being_played(user_id, int(command))
                 #valid card played
                 if self.sub_round_suit != None:
+                    print("Sub-round-suit: {}".format(self.sub_round_suit))
                     #a wizard or a jester is always a valid play
                     if card_being_played == "wizard" or card_being_played == "jester":
                         self.handle_valid_card_played(card_being_played)
@@ -191,15 +193,19 @@ class WizardBot:
                     else:
                         self.private_message_user(user_id, "You can't play that card")
                 elif self.sub_round_suit == None:
+                    print("There is no sub-round-suit")
                     if card_being_played == "wizard":
+                        print("{} played a Wizard".format(current_username))
                         self.sub_round_suit = "Any"
                         self.handle_valid_card_played(card_being_played)
                     elif card_being_played == "jester":
+                        print("{} played a Jester".format(current_username))
                         #the sub round suit stays None until a player plays a suited card
                         self.handle_valid_card_played(card_being_played)
                     else:
                         self.sub_round_suit = card_being_played[1]
-                        self.cards_played_for_sub_round.append(card_being_played)
+                        print("Sub-round-suit set to {}".format(card_being_played[1]))
+                        self.handle_valid_card_played(card_being_played)
             else:
                 response = "That wasn't a valid card index."
         self.private_message_user(user_id, response)
@@ -215,12 +221,12 @@ class WizardBot:
 
 
     def handle_valid_card_played(self, card):
-        print("Player turn queue: {}".format(self.player_turn_queue))
         self.cards_played_for_sub_round.append(card)
+        print("Cards played for sub-round: {}".format(self.cards_played_for_sub_round))
         self.player_turn_queue.popleft()
+        print("Player turn queue: {}".format(self.player_turn_queue))
         if len(self.player_turn_queue) == 0:
-            #everyone has played the sub_round
-            print("Card played: {}".format(self.cards_played_for_sub_round))
+            print("Everyone played, time to determine winner for sub-round")
             self.determine_winner_for_sub_round()
         else:
             self.private_message_user(self.player_turn_queue[0], "Your turn. Pick a card to play.")
