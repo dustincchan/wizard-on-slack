@@ -34,7 +34,7 @@ class Game:
         #[Player1, Player2, Player3, ...etc]
         self.players = players
         self.final_round = 60/len(players) #i.e. 12 rounds for 5 players
-        self.current_round = 1
+        self.current_round = 2
         self.current_round_trump_suit = None
         self.bot = bot
 
