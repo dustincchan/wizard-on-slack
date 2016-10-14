@@ -25,6 +25,8 @@ class WizardBot:
         self.player_trump_card_queue = [] #['USERID']
         self.player_bid_queue = [] #['USERID1', 'USERID2', 'USERID3']
         self.player_turn_queue = [] #['USERID1', 'USERID2', 'USERID3']
+        self.player_turn_queue_reference = []
+        self.dealer_for_current_round = None
 
         #ROUND VARIABLES
         self.player_bids_for_current_round = [] #[1, 1, 0]
@@ -263,6 +265,7 @@ class WizardBot:
                     print("Rotating player turn queue")
                     #rotate player_turn_queue until the first player is the one who won
                     self.player_turn_queue.rotate(1)
+                self.player_turn_queue_reference = copy.copy(self.player_turn_queue)
                 self.winner_for_sub_round = None
                 self.private_message_user(self.player_turn_queue[0], "Play a card `index`")
         else:
@@ -287,7 +290,6 @@ class WizardBot:
         if self.current_game.current_round == self.current_game.final_round:
             self.present_winner_for_game()
         else:
-            self.current_game.current_round += 1
             self.current_game.play_round()
 
     def present_winner_for_game(self):
@@ -328,19 +330,19 @@ class WizardBot:
         if self.cards_played_for_sub_round == ["jester" for _ in range(num_cards_played)]:
             print("Everyone played jesters this sub-round. First player wins.")
             self.winning_sub_round_card = "jester"
-            self.winner_for_sub_round = self.users_in_game[0]
+            self.winner_for_sub_round = self.player_turn_queue_reference[0]
             return
         elif self.cards_played_for_sub_round[0] == "wizard":
             print("First player played a Wizard, he/she wins.")
             self.winning_sub_round_card = "wizard"
-            self.winner_for_sub_round = self.users_in_game[0]
+            self.winner_for_sub_round = self.player_turn_queue_reference[0]
             return
         else:
             #we have to iterate over the cards to determine the winner for the sub-round
             winning_card = None
             trump_suit = self.current_game.current_round_trump_suit
             for idx, card in enumerate(self.cards_played_for_sub_round):
-                current_player = self.users_in_game[idx]
+                current_player = self.player_turn_queue_reference[idx]
                 if card == "wizard":
                     #first wizard played wins, regardless of all other hands
                     self.winning_sub_round_card = card
@@ -421,6 +423,7 @@ class WizardBot:
         #the player after the dealer should be first to bid, so we rotate the queue
         self.player_bid_queue.rotate(-1)
         self.player_turn_queue.rotate(-1)
+        self.player_turn_queue_reference = copy.copy(self.player_turn_queue)
         self.users_in_game.rotate(-1)
 
         #DEBUGGING REMOVE THIS AFTER TESTING
