@@ -34,9 +34,10 @@ class Game:
         #[Player1, Player2, Player3, ...etc]
         self.players = players
         self.final_round = 60/len(players) #i.e. 12 rounds for 5 players
-        self.current_round = 2
+        self.current_round = 1
         self.current_round_trump_suit = None
         self.bot = bot
+        self.bot.current_game = self
 
     # 1) creates a new shuffled deck
     # 2) deals cards to the players depending on the round #
@@ -44,7 +45,6 @@ class Game:
     # 4) gets bids from players
     # 5) plays mini-rounds & allocates points until round is over
     def play_round(self):
-        self.bot.current_game = self
         shuffled_deck = Deck()
         for _ in range(0, self.current_round):
             self.deal_single_card_to_each_player(shuffled_deck)
@@ -56,6 +56,7 @@ class Game:
                 #is a wizard or jester
                 if trump_card == "wizard":
                     self.bot.prompt_dealer_for_trump_suit(self.players[0].id)
+                    self.bot.player_trump_card_queue.append(self.players[0].id)
                 elif trump_card == "jester":
                     trump_suit = None
             elif len(trump_card) == 2: #regular card
@@ -67,28 +68,7 @@ class Game:
         self.bot.get_bids_from_players(self.current_round, self.players)
         self.bot.announce_trump_card(trump_card)
         #dealer is always index 0 of players and we will rotate the array end of each turn
-        for _ in range(0, self.current_round):
-            self.play_sub_round()
-        self.current_round += 1
-
-
-    def play_sub_round(self):
-        pass
-        # player_bids = WizardBot.get_player_bids()
-        #prompt each player to choose a card
 
     def deal_single_card_to_each_player(self, deck):
         for player in self.players:
             player.receive_card(deck.deal_card())
-
-    def prompt_dealer_for_trump_suit(self):
-        #either it's the last round or a wizard was the trump card
-        pass
-
-    def get_player_bids(self):
-        for player in self.players:
-            pass #TODO get player bid from slack PM
-
-def play_full_game_of_wizard(game):
-    while game.current_round < game.final_round:
-        game.play_round()

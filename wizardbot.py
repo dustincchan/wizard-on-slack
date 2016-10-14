@@ -20,17 +20,19 @@ class WizardBot:
         self.user_ids_to_username = {} #{'USERID': 'Dustin'}
         self.channel_ids_to_name = {} #{'CHANNELID': "#Maingame"}
         self.main_channel_id = 'C2F154UTE' #TODO make this dynamic
-        self.player_bids_for_current_round = [] #[1, 1, 0]
+        self.game_scorecard = defaultdict(int)
 
         self.player_trump_card_queue = [] #['USERID']
         self.player_bid_queue = [] #['USERID1', 'USERID2', 'USERID3']
         self.player_turn_queue = [] #['USERID1', 'USERID2', 'USERID3']
 
-        self.current_round = 1
+        #ROUND VARIABLES
+        self.player_bids_for_current_round = [] #[1, 1, 0]
         self.current_game = None #WizardGame.Game() object
+        self.player_points_for_round = defaultdict(int)
+        self.leading_suit = None #string
 
-        #this is the suit that enforces other players play a card that has that suit, if they have one
-        self.leading_suit = None #"diamonds"
+        #SUB-ROUND VARIABLES
         self.cards_played_for_sub_round = [] #this mirrors player_turn_queue as to determine a winner
         self.winner_for_sub_round = None
         self.sub_rounds_played = 0
@@ -63,8 +65,7 @@ class WizardBot:
 
         if command.lower().startswith("cancel"):
             response = "Okay, game cancelled."
-            while len(self.users_in_game) > 0:
-                self.users_in_game.pop()
+            self.users_in_game.clear()
 
         if command.lower().startswith("add me"):
             if len(self.users_in_game) == 0:
@@ -125,7 +126,10 @@ class WizardBot:
         for user_object in self.current_game.players:
             if user_object.id == user_id:
                 print(user_object.cards_in_hand)
-                return user_object.cards_in_hand[index]
+                if index > len(user_object.cards_in_hand):
+                    return None
+                else:
+                    return user_object.cards_in_hand[index]
 
     def handle_player_bid(self, command, user_id):
         current_username = self.user_ids_to_username[self.player_bid_queue[0]]
@@ -135,7 +139,7 @@ class WizardBot:
         elif user_id == self.player_bid_queue[0]:
             #expected user to bid
             try:
-                if 0 > int(command) > self.current_round:
+                if 0 > int(command) > self.current_game.current_round:
                     response = "You can't bid that amount!"
                 else:
                     #valid bid
@@ -174,10 +178,14 @@ class WizardBot:
         elif user_id == self.player_turn_queue[0]:
             print('Received input from expected player: {}'.format(current_username))
             #validate the int(command) index selected is within the range of cards in hand
-            if int(command) >= 0 and int(command) < self.current_round:
+            if int(command) >= 0 and int(command) < self.current_game.current_round:
+
                 print("Selected a valid card index")
                 card_being_played = self.get_card_being_played(user_id, int(command))
-                #valid card played
+                if card_being_played == None:
+                    self.private_message_user(user_id, "That's not a valid card index")
+                    return
+                #otherwise valid card played
                 if self.leading_suit != None:
                     print("Sub-round-suit: {}".format(self.leading_suit))
                     #a wizard or a jester is always a valid play
@@ -223,7 +231,6 @@ class WizardBot:
                             return True
         return False
 
-
     def handle_valid_card_played(self, card):
         player_who_played_card = self.user_ids_to_username[self.player_turn_queue[0]]
         self.remove_card_from_players_hand(self.player_turn_queue[0], card)
@@ -237,17 +244,18 @@ class WizardBot:
             self.sub_rounds_played += 1
             print(">Everyone played, time to determine winner for sub-round")
             self.determine_winner_for_sub_round()
-            self.message_main_game_channel(">*<@{}> won this sub-round with a [{}:{}:]*".format(
-                self.winner_for_sub_round, self.winning_sub_round_card[0], self.winning_sub_round_card[1]))
+            self.player_points_for_round[self.winner_for_sub_round] += 1
+            self.message_main_game_channel(">*<@{}> won this sub-round with a {}*".format(
+                self.winner_for_sub_round, helper_functions.emojify_card(self.winning_sub_round_card)))
             #reset all sub-round variables
             self.leading_suit = None
             self.cards_played_for_sub_round = []
 
-            if self.sub_rounds_played == self.current_round:
+            if self.sub_rounds_played == self.current_game.current_round:
                 print("Sub-rounds over, time to tally points and display them")
                 self.calculate_and_display_points_for_players()
                 self.winner_for_sub_round = None
-            elif self.sub_rounds_played < self.current_round:
+            elif self.sub_rounds_played < self.current_game.current_round:
                 self.message_main_game_channel(">_Sub-Round {}_".format(self.sub_rounds_played + 1))
                 #initialize another turn queue cause there are more cards to play
                 self.player_turn_queue = copy.copy(self.users_in_game)
@@ -258,10 +266,45 @@ class WizardBot:
                 self.winner_for_sub_round = None
                 self.private_message_user(self.player_turn_queue[0], "Play a card `index`")
         else:
-            self.private_message_user(self.player_turn_queue[0], "Your turn. Pick a card to play.")
+            self.private_message_user(self.player_turn_queue[0], "Play a card `index`")
 
     def calculate_and_display_points_for_players(self):
-        print("CALCULATING POINTS")
+        self.message_main_game_channel("*Round {} over!* _calculating points..._".format(self.current_game.current_round))
+        for idx, player_id in enumerate(self.users_in_game):
+            current_players_bid = self.player_bids_for_current_round[idx]
+            points_off_from_bid = abs(current_players_bid - self.player_points_for_round[player_id])
+            if points_off_from_bid == 0:
+                #The player got his/her bid correctly
+                self.game_scorecard[player_id] += (20 + 10 * current_players_bid)
+            else:
+                #player loses 10-points for every point above or below bid
+                self.game_scorecard[player_id] -= 10 * points_off_from_bid
+        self.message_main_game_channel(">*Score Board*")
+        for player_id in self.users_in_game:
+            self.message_main_game_channel("><@{}>: *{} Points*".format(self.user_ids_to_username[player_id], self.game_scorecard[player_id]))
+        print(self.current_game)
+        self.prepare_for_next_round()
+        if self.current_game.current_round == self.current_game.final_round:
+            self.present_winner_for_game()
+        else:
+            self.current_game.current_round += 1
+            self.current_game.play_round()
+
+    def present_winner_for_game(self):
+        pass
+
+    def prepare_for_next_round(self):
+        self.current_game.current_round += 1
+
+        self.player_bids_for_current_round = []
+        self.player_points_for_round = defaultdict(int)
+        self.leading_suit = None
+
+        self.sub_rounds_played = 0
+        self.winning_sub_round_card = None
+        self.winer_for_sub_round = None
+        self.cards_played_for_sub_round = []
+        #clears all round and sub-round variables
 
     def remove_card_from_players_hand(self, current_player_id, card_to_remove):
         idx_of_card_to_remove = None
@@ -308,7 +351,6 @@ class WizardBot:
                         if WizardGame.wizard_deck.index(card) > WizardGame.wizard_deck.index(self.winning_sub_round_card):
                             #trump suit played beats previous trump suit
                             self.winning_sub_round_card = card
-                            self.winning_sub_round_card = card
                             self.winner_for_sub_round = current_player
                     else:
                         self.winning_sub_round_card = card
@@ -348,7 +390,7 @@ class WizardBot:
         response = ""
         if len(self.player_trump_card_queue):
             # self.handle_trump_suit_selection(command, user_id)
-            print('TODO: handle trump suit selection')
+            self.handle_trump_suit_selection(command, user_id)
 
         elif len(self.player_bid_queue):
             self.handle_player_bid(command, user_id)
@@ -380,7 +422,6 @@ class WizardBot:
         self.player_bid_queue.rotate(-1)
         self.player_turn_queue.rotate(-1)
         self.users_in_game.rotate(-1)
-        self.current_round = current_round
 
         #DEBUGGING REMOVE THIS AFTER TESTING
         self.player_bid_queue.clear()
@@ -426,7 +467,7 @@ class WizardBot:
 
     def announce_trump_card(self, trump_card):
         self.message_main_game_channel(">>>*Round {}* \n The trump card is: {} \n _Sub-Round {}_".format(
-            self.current_round,
+            self.current_game.current_round,
             helper_functions.emojify_card(trump_card),
             self.sub_rounds_played + 1))
     #takes an array of player_ids and the channel the game request originated from
@@ -440,7 +481,7 @@ class WizardBot:
 
 if __name__ == "__main__":
     bot = WizardBot()
-    READ_WEBSOCKET_DELAY = 0.25 # 1 second delay between reading from firehose
+    READ_WEBSOCKET_DELAY = 1 # 1 second delay between reading from firehose
     #grab user list and converts it to to a dict of ids to usernames
     api_call = slack_client.api_call("users.list")
 
